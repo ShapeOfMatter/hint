@@ -9,8 +9,8 @@ import qualified GHC.Exts (unsafeCoerce#)
 
 import Control.Exception
 
-import Data.Typeable hiding (typeOf)
-import qualified Data.Typeable (typeOf)
+import Data.Typeable hiding (splitTyConApp, typeOf)
+import qualified Data.Typeable as T (splitTyConApp, typeOf)
 
 import Hint.Base
 import Hint.Context
@@ -31,7 +31,16 @@ infer = undefined
 
 -- | Evaluates an expression, given a witness for its monomorphic type.
 interpret :: (MonadInterpreter m, Typeable a) => String -> a -> m a
-interpret expr wit = unsafeInterpret expr (show $ Data.Typeable.typeOf wit)
+interpret expr wit = unsafeInterpret expr (typeRepStr $ T.typeOf wit)
+    where -- Use less fancy parens because there shouldn't be any comments in this stuff:
+          _parens = ("("++) . (++")")
+          -- Type Constructors should serialize just fine. Wrap in parens in case they're operators:
+          conToStr = _parens . show
+          -- Handle any arguments to the Type Constructor recursively:
+          argsToStr = concat . (map $ (" "++) . typeRepStr)
+          -- Wrap the whole thing in parens to controle interactions:
+          typeRepStr = _typeRepStr . T.splitTyConApp
+          _typeRepStr (con, args) = _parens $ (conToStr con) ++ (argsToStr args)
 
 unsafeInterpret :: (MonadInterpreter m) => String -> String -> m a
 unsafeInterpret expr type_str =
